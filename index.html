@@ -1,246 +1,170 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitBlock Tile Edition</title>
+    <title>Elite Boxer: Supply Drop Edition</title>
     <style>
-        :root {
-            --bg: #0d1117;
-            --grid-bg: #161b22;
-            --border: #30363d;
-            --accent: #2ea043; /* Brighter tile green */
-            --accent-light: #3fb950;
-            --accent-dark: #238636;
-            --text: #c9d1d9;
-            --ghost: rgba(46, 160, 67, 0.15);
-        }
-        body { 
-            background: var(--bg); color: var(--text); 
-            font-family: -apple-system, sans-serif; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            height: 100vh; margin: 0; overflow: hidden; user-select: none;
-        }
-        #game-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
-        .stats { display: flex; gap: 40px; font-size: 20px; font-weight: 700; color: #8b949e; }
-        
-        #grid { 
-            display: grid; grid-template-columns: repeat(10, 34px); grid-template-rows: repeat(10, 34px); 
-            gap: 4px; background: var(--border); padding: 10px; border-radius: 8px; 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-        }
-        
-        .cell { width: 34px; height: 34px; background: var(--grid-bg); border-radius: 4px; box-shadow: inset 0 0 5px rgba(0,0,0,0.3); }
-
-        /* TILE STYLING */
-        .cell.filled, .piece-cell { 
-            background: linear-gradient(145deg, var(--accent-light), var(--accent-dark));
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 4px;
-            box-shadow: 
-                inset 1px 1px 2px rgba(255,255,255,0.4), 
-                inset -1px -1px 2px rgba(0,0,0,0.4),
-                0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .cell.ghost { background: var(--ghost); border: 2px dashed var(--accent); }
-
-        /* ANIMATION */
-        .cell.breaking { animation: breakEffect 0.4s ease-out forwards; z-index: 10; }
-        @keyframes breakEffect {
-            0% { transform: scale(1); filter: brightness(2); }
-            100% { transform: scale(0); opacity: 0; filter: brightness(3); }
-        }
-
-        #hand { display: flex; gap: 25px; align-items: center; justify-content: center; min-height: 140px; }
-        .piece { display: grid; gap: 4px; cursor: grab; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
-        .piece:active { cursor: grabbing; transform: scale(1.1); }
-        .piece-cell { width: 24px; height: 24px; }
-
-        button { background: #21262d; color: #58a6ff; border: 1px solid #30363d; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #30363d; transform: translateY(-2px); }
-        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
+        body { background: #121212; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        canvas { background: #2c3e50; border: 6px solid #34495e; box-shadow: 0 0 30px rgba(0,0,0,0.7); border-radius: 8px; }
+        .menu-overlay { position: absolute; background: rgba(0,0,0,0.9); width: 800px; height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; text-align: center; }
+        button { padding: 10px 15px; cursor: pointer; background: #e74c3c; color: white; border: none; font-weight: bold; margin: 5px; transition: 0.2s; }
+        button:hover { background: #c0392b; transform: scale(1.05); }
+        .active-opt { border: 3px solid #f1c40f; }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div class="stats">
-            <div>Score: <span id="current-score">0</span></div>
-            <div style="color:#f2cc60">Best: <span id="best-score">0</span></div>
+    <div id="game-wrapper" style="position: relative;">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        
+        <div id="menu" class="menu-overlay">
+            <h1>ELITE BOXER</h1>
+            <div>
+                <p>Difficulty:</p>
+                <button id="d1" onclick="setDiff(0.03, 'd1')">EASY</button>
+                <button id="d2" class="active-opt" onclick="setDiff(0.07, 'd2')">NORMAL</button>
+                <button id="d3" onclick="setDiff(0.12, 'd3')">HARD</button>
+            </div>
+            <div>
+                <p>Supply Drops (Weapons fall from sky):</p>
+                <button id="dropOff" class="active-opt" onclick="setDrops(false, 'dropOff')">OFF</button>
+                <button id="dropOn" onclick="setDrops(true, 'dropOn')">ON</button>
+            </div>
+            <br>
+            <button style="background:#2ecc71; font-size: 20px;" onclick="startGame()">START FIGHT</button>
         </div>
-        <div id="grid"></div>
-        <div id="hand"></div>
-        <button onclick="resetGame()">Restart</button>
-    </div>
-
-    <div id="overlay">
-        <h1 style="color: #f85149; font-size: 50px; margin:0;">GAME OVER</h1>
-        <p id="final-stats" style="font-size: 24px; margin: 20px 0;"></p>
-        <button onclick="resetGame()" style="background: var(--accent); color: white; padding: 15px 40px; font-size: 20px;">Respawn Tiles</button>
     </div>
 
     <script>
-        const gridElement = document.getElementById('grid');
-        const handElement = document.getElementById('hand');
-        const scoreElement = document.getElementById('current-score');
-        const bestElement = document.getElementById('best-score');
-        const overlay = document.getElementById('overlay');
-        const finalStats = document.getElementById('final-stats');
-        
-        let score = 0;
-        let bestScore = localStorage.getItem('blockBlastBest') || 0;
-        let grid = [];
-        let currentHandShapes = [];
-        let activeDraggedShape = null;
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const menu = document.getElementById("menu");
 
-        bestElement.innerText = bestScore;
+        let gameState = "MENU";
+        let aiAggro = 0.07;
+        let dropsEnabled = false;
+        let winner = null;
+        let items = [];
 
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playCrunch() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.15);
-            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.15);
-        }
+        const weapons = {
+            'Gloves': { dmg: 8, range: 80, stamina: 10, color: 'white' },
+            'Bat': { dmg: 18, range: 130, stamina: 25, color: '#8d6e63' },
+            'Brass': { dmg: 25, range: 65, stamina: 20, color: '#f1c40f' }
+        };
 
-        const shapes = [
-            [[0,0], [0,1], [1,0], [1,1]], [[0,0], [0,1], [0,2]], [[0,0], [1,0], [2,0]], 
-            [[0,0], [0,1], [1,1]], [[0,0], [1,0], [1,1], [2,1]], [[0,0], [0,1], [0,2], [0,3]]
-        ];
+        function setDiff(v, id) { aiAggro = v; clearGroup('d'); document.getElementById(id).classList.add('active-opt'); }
+        function setDrops(v, id) { dropsEnabled = v; clearGroup('drop'); document.getElementById(id).classList.add('active-opt'); }
+        function clearGroup(prefix) { document.querySelectorAll(`button[id^="${prefix}"]`).forEach(b => b.classList.remove('active-opt')); }
 
-        function resetGame() {
-            score = 0; scoreElement.innerText = '0';
-            overlay.style.display = 'none';
-            grid = Array(10).fill().map(() => Array(10).fill(0));
-            initGridUI();
-            spawnPieces();
-        }
-
-        function initGridUI() {
-            gridElement.innerHTML = '';
-            for (let r = 0; r < 10; r++) {
-                for (let c = 0; c < 10; c++) {
-                    const cell = document.createElement('div');
-                    cell.classList.add('cell');
-                    cell.dataset.r = r; cell.dataset.c = c;
-                    cell.addEventListener('dragover', handleDragOver);
-                    cell.addEventListener('dragleave', () => document.querySelectorAll('.cell.ghost').forEach(c => c.classList.remove('ghost')));
-                    cell.addEventListener('drop', handleDrop);
-                    gridElement.appendChild(cell);
-                }
+        class Item {
+            constructor() {
+                this.x = Math.random() * 700 + 50;
+                this.y = -50;
+                this.type = Math.random() > 0.5 ? 'Bat' : 'Brass';
+            }
+            update() { if (this.y < 320) this.y += 3; }
+            draw() {
+                ctx.fillStyle = "#d38d5f";
+                ctx.fillRect(this.x, this.y, 30, 30);
+                ctx.strokeStyle = "white"; ctx.strokeRect(this.x, this.y, 30, 30);
             }
         }
 
-        function spawnPieces() {
-            handElement.innerHTML = '';
-            currentHandShapes = [];
-            for (let i = 0; i < 3; i++) {
-                const shape = shapes[Math.floor(Math.random() * shapes.length)];
-                currentHandShapes.push(shape);
-                const piece = document.createElement('div');
-                piece.className = 'piece'; piece.draggable = true; piece.dataset.index = i;
-                const maxR = Math.max(...shape.map(p => p[0])), maxC = Math.max(...shape.map(p => p[1]));
-                piece.style.gridTemplateRows = `repeat(${maxR + 1}, 24px)`;
-                piece.style.gridTemplateColumns = `repeat(${maxC + 1}, 24px)`;
-                shape.forEach(p => {
-                    const pc = document.createElement('div'); pc.className = 'piece-cell';
-                    pc.style.gridRowStart = p[0] + 1; pc.style.gridColumnStart = p[1] + 1;
-                    piece.appendChild(pc);
-                });
-                piece.addEventListener('dragstart', (e) => { activeDraggedShape = shape; e.dataTransfer.setData('idx', i); });
-                handElement.appendChild(piece);
+        class Fighter {
+            constructor(x, color, side, isAI) {
+                this.x = x; this.y = 240; this.w = 60; this.h = 110;
+                this.color = color; this.side = side; this.isAI = isAI;
+                this.hp = 100; this.stamina = 100;
+                this.velY = 0; this.velX = 0;
+                this.isJumping = false; this.isBlocking = false;
+                this.action = "idle"; this.actionTimer = 0;
+                this.weapon = weapons['Gloves'];
             }
-            if (!canAnyPieceFit()) triggerGameOver();
-        }
+            update() {
+                this.y += this.velY; this.x += this.velX; this.velX *= 0.85;
+                if (this.y < 240) { this.velY += 1.2; this.isJumping = true; } 
+                else { this.y = 240; this.velY = 0; this.isJumping = false; }
+                if (this.stamina < 100) this.stamina += 0.5;
+                if (this.actionTimer > 0) this.actionTimer--; else this.action = "idle";
 
-        function handleDragOver(e) {
-            e.preventDefault();
-            const r = parseInt(e.target.dataset.r), c = parseInt(e.target.dataset.c);
-            document.querySelectorAll('.cell.ghost').forEach(x => x.classList.remove('ghost'));
-            if (activeDraggedShape && canPlace(activeDraggedShape, r, c)) {
-                activeDraggedShape.forEach(([dr, dc]) => gridElement.children[(r + dr) * 10 + (c + dc)].classList.add('ghost'));
-            }
-        }
-
-        function handleDrop(e) {
-            const r = parseInt(e.target.dataset.r), c = parseInt(e.target.dataset.c), idx = e.dataTransfer.getData('idx');
-            if (activeDraggedShape && canPlace(activeDraggedShape, r, c)) {
-                activeDraggedShape.forEach(([dr, dc]) => {
-                    grid[r+dr][c+dc] = 1;
-                    gridElement.children[(r+dr)*10+(c+dc)].classList.add('filled');
-                });
-                score += activeDraggedShape.length * 10;
-                checkLines();
-                document.querySelector(`.piece[data-index="${idx}"]`).remove();
-                currentHandShapes[idx] = null;
-                if (currentHandShapes.every(s => s === null)) spawnPieces();
-                else if (!canAnyPieceFit()) triggerGameOver();
-            }
-            activeDraggedShape = null;
-        }
-
-        function canPlace(shape, r, c) {
-            return shape.every(([dr, dc]) => {
-                const nr = r + dr, nc = c + dc;
-                return nr >= 0 && nr < 10 && nc >= 0 && nc < 10 && grid[nr][nc] === 0;
-            });
-        }
-
-        function checkLines() {
-            let rows = [], cols = [];
-            for (let i = 0; i < 10; i++) {
-                if (grid[i].every(v => v === 1)) rows.push(i);
-                if (grid.map(row => row[i]).every(v => v === 1)) cols.push(i);
-            }
-            if (rows.length > 0 || cols.length > 0) {
-                playCrunch();
-                rows.forEach(r => {
-                    grid[r] = Array(10).fill(0);
-                    for (let c = 0; c < 10; c++) animateCell(r, c);
-                });
-                cols.forEach(c => {
-                    for (let r = 0; r < 10; r++) {
-                        if (grid[r][c] === 1 || rows.includes(r)) {
-                            grid[r][c] = 0; animateCell(r, c);
-                        }
+                // Item Pickup
+                items.forEach((it, index) => {
+                    if (this.x < it.x + 30 && this.x + this.w > it.x && this.y < it.y + 30 && this.y + this.h > it.y) {
+                        this.weapon = weapons[it.type];
+                        items.splice(index, 1);
                     }
                 });
-                score += (rows.length + cols.length) * 150;
-                scoreElement.innerText = score;
-                if (score > bestScore) { bestScore = score; bestElement.innerText = score; localStorage.setItem('blockBlastBest', score); }
+            }
+            draw() {
+                ctx.fillStyle = this.isBlocking ? "#7f8c8d" : this.color;
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                // Draw Weapon in hand
+                ctx.fillStyle = this.weapon.color;
+                let wx = this.side === "left" ? this.x + 45 : this.x + 5;
+                ctx.fillRect(wx, this.y + 50, 10, 20);
+
+                let barX = this.side === "left" ? 20 : 580;
+                ctx.fillStyle = "red"; ctx.fillRect(barX, 20, this.hp * 2, 15);
+                ctx.fillStyle = "lime"; ctx.fillRect(barX, 40, this.stamina * 2, 5);
+
+                if (this.action === "atk") {
+                    ctx.fillStyle = "rgba(255,255,255,0.5)";
+                    let hitX = this.side === "left" ? this.x + 60 : this.x - this.weapon.range + 60;
+                    ctx.fillRect(hitX, this.y + 30, this.weapon.range - 60, 20);
+                }
             }
         }
 
-        function animateCell(r, c) {
-            const cell = gridElement.children[r * 10 + c];
-            cell.classList.remove('filled'); cell.classList.add('breaking');
-            setTimeout(() => cell.classList.remove('breaking'), 400);
+        let p1, cpu, keys = {};
+        window.onkeydown = (e) => keys[e.code] = true;
+        window.onkeyup = (e) => keys[e.code] = false;
+
+        function startGame() {
+            p1 = new Fighter(100, "#e74c3c", "left", false);
+            cpu = new Fighter(640, "#3498db", "right", true);
+            gameState = "PLAY";
+            menu.style.display = "none";
+            if(dropsEnabled) setInterval(() => { if(!winner) items.push(new Item()); }, 7000);
         }
 
-        function canAnyPieceFit() {
-            return currentHandShapes.some(shape => {
-                if (!shape) return false;
-                for (let r = 0; r < 10; r++) {
-                    for (let c = 0; c < 10; c++) if (canPlace(shape, r, c)) return true;
+        function checkHit(atk, def) {
+            let dist = Math.abs(atk.x - def.x);
+            if (dist < atk.weapon.range) {
+                def.hp -= def.isBlocking ? atk.weapon.dmg * 0.2 : atk.weapon.dmg;
+                def.velX = atk.side === "left" ? 15 : -15;
+                if (def.hp <= 0) winner = atk.isAI ? "CPU" : "PLAYER 1";
+            }
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, 800, 400);
+            if (gameState === "PLAY") {
+                if (winner) {
+                    ctx.fillStyle = "gold"; ctx.font = "40px Arial";
+                    ctx.fillText(winner + " WINS!", 280, 200);
+                } else {
+                    // P1
+                    if (keys['KeyA'] && p1.x > 0) p1.x -= 5;
+                    if (keys['KeyD'] && p1.x < cpu.x - 60) p1.x += 5;
+                    if (keys['KeyW'] && !p1.isJumping) p1.velY = -18;
+                    p1.isBlocking = keys['KeyB'];
+                    if (keys['Space'] && p1.actionTimer <= 0 && p1.stamina > p1.weapon.stamina) {
+                        p1.action = "atk"; p1.actionTimer = 20; p1.stamina -= p1.weapon.stamina; checkHit(p1, cpu);
+                    }
+                    // AI
+                    let d = Math.abs(cpu.x - p1.x);
+                    if (d > cpu.weapon.range) cpu.x -= 3;
+                    if (Math.random() < aiAggro && cpu.actionTimer <= 0) {
+                        cpu.action = "atk"; cpu.actionTimer = 20; checkHit(cpu, p1);
+                    }
+                    items.forEach(it => { it.update(); it.draw(); });
+                    p1.update(); cpu.update(); p1.draw(); cpu.draw();
                 }
-                return false;
-            });
+            }
+            requestAnimationFrame(gameLoop);
         }
-
-        function triggerGameOver() {
-            finalStats.innerHTML = `Tiles Placed Score: ${score}<br>Personal Best: ${bestScore}`;
-            overlay.style.display = 'flex';
-        }
-
-        resetGame();
+        gameLoop();
     </script>
 </body>
 </html>
+What's New:
