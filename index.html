@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitBlock Puzzle - Pro</title>
+    <title>GitBlock Puzzle - Satisfying Edition</title>
     <style>
         :root {
             --bg: #0d1117;
@@ -11,64 +11,43 @@
             --border: #30363d;
             --accent: #238636;
             --text: #c9d1d9;
-            --ghost: rgba(35, 134, 54, 0.2);
+            --ghost: rgba(35, 134, 54, 0.3);
+            --break-color: #3fb950;
         }
         body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            margin: 0; 
-            overflow: hidden;
-            user-select: none;
+            background: var(--bg); color: var(--text); 
+            font-family: -apple-system, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; overflow: hidden; user-select: none;
         }
         #game-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
         .stats { display: flex; gap: 40px; font-size: 18px; font-weight: 600; color: #8b949e; }
         #best-score { color: #f2cc60; }
         #grid { 
-            display: grid; 
-            grid-template-columns: repeat(10, 32px); 
-            grid-template-rows: repeat(10, 32px); 
-            gap: 4px; 
-            background: var(--border); 
-            padding: 8px; 
-            border-radius: 6px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: grid; grid-template-columns: repeat(10, 32px); grid-template-rows: repeat(10, 32px); 
+            gap: 4px; background: var(--border); padding: 8px; border-radius: 6px; position: relative;
         }
-        .cell { width: 32px; height: 32px; background: var(--grid-bg); border-radius: 3px; }
-        .cell.filled { background: var(--accent); border: 1px solid #2ea043; box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
+        .cell { width: 32px; height: 32px; background: var(--grid-bg); border-radius: 3px; position: relative; }
+        .cell.filled { background: var(--accent); border: 1px solid #2ea043; transition: transform 0.1s; }
+        .cell.ghost { background: var(--ghost); border: 1px dashed var(--accent); }
+        
+        /* Breaking Animation */
+        .cell.breaking {
+            animation: breakEffect 0.4s ease-out forwards;
+            z-index: 10;
+        }
+
+        @keyframes breakEffect {
+            0% { transform: scale(1); background: var(--break-color); box-shadow: 0 0 0px var(--break-color); }
+            50% { transform: scale(1.2); background: #fff; box-shadow: 0 0 15px #fff; }
+            100% { transform: scale(0); background: transparent; opacity: 0; }
+        }
+
         #hand { display: flex; gap: 20px; align-items: center; justify-content: center; min-height: 130px; margin-top: 15px; }
-        .piece { display: grid; gap: 3px; cursor: grab; padding: 10px; border: 1px solid transparent; border-radius: 4px; }
-        .piece:hover { background: #21262d; border-color: #30363d; }
+        .piece { display: grid; gap: 3px; cursor: grab; padding: 10px; }
         .piece-cell { width: 20px; height: 20px; background: var(--accent); border-radius: 2px; }
-        
-        button {
-            background-color: #21262d;
-            color: #58a6ff;
-            border: 1px solid rgba(240,246,252,0.1);
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        button:hover { background-color: #30363d; border-color: #8b949e; transform: translateY(-1px); }
-        
-        #overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(13, 17, 23, 0.9);
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            backdrop-filter: blur(4px);
-        }
+        button { background: #21262d; color: #58a6ff; border: 1px solid rgba(240,246,252,0.1); padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 17, 23, 0.9); flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
     </style>
 </head>
 <body>
@@ -84,9 +63,9 @@
     </div>
 
     <div id="overlay">
-        <h1 style="color: #f85149; font-size: 48px; margin-bottom: 10px;">GAME OVER</h1>
-        <p id="final-stats" style="font-size: 20px; margin-bottom: 30px; text-align: center;"></p>
-        <button onclick="resetGame()" style="background: var(--accent); color: white; padding: 15px 40px; font-size: 18px;">Respawn Now</button>
+        <h1 style="color: #f85149; font-size: 48px;">GAME OVER</h1>
+        <p id="final-stats" style="font-size: 20px; margin-bottom: 30px;"></p>
+        <button onclick="resetGame()" style="background: var(--accent); color: white; padding: 15px 40px;">Respawn Now</button>
     </div>
 
     <script>
@@ -101,24 +80,33 @@
         let bestScore = localStorage.getItem('blockBlastBest') || 0;
         let grid = [];
         let currentHandShapes = [];
+        let activeDraggedShape = null;
 
         bestElement.innerText = bestScore;
 
+        // Audio System
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playCrunchSound() {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
         const shapes = [
-            {data: [[0,0], [0,1], [1,0], [1,1]], name: 'Square'},
-            {data: [[0,0], [0,1], [0,2]], name: 'Line3H'},
-            {data: [[0,0], [1,0], [2,0]], name: 'Line3V'},
-            {data: [[0,0], [0,1], [0,2], [0,3]], name: 'Line4H'},
-            {data: [[0,0], [1,0], [2,0], [3,0]], name: 'Line4V'},
-            {data: [[0,0], [1,0], [1,1]], name: 'LSmall'},
-            {data: [[0,0], [1,0], [2,0], [2,1]], name: 'LBig'},
-            {data: [[0,0], [0,1], [1,1], [2,1]], name: 'JBig'},
-            {data: [[0,0]], name: 'Dot'}
+            [[0,0], [0,1], [1,0], [1,1]], [[0,0], [0,1], [0,2]], [[0,0], [1,0], [2,0]], 
+            [[0,0], [0,1], [1,1]], [[0,0], [0,1], [0,2], [0,3]], [[0,0]]
         ];
 
         function resetGame() {
-            score = 0;
-            scoreElement.innerText = '0';
+            score = 0; scoreElement.innerText = '0';
             overlay.style.display = 'none';
             grid = Array(10).fill().map(() => Array(10).fill(0));
             initGridUI();
@@ -131,9 +119,9 @@
                 for (let c = 0; c < 10; c++) {
                     const cell = document.createElement('div');
                     cell.classList.add('cell');
-                    cell.dataset.r = r;
-                    cell.dataset.c = c;
-                    cell.addEventListener('dragover', e => e.preventDefault());
+                    cell.dataset.r = r; cell.dataset.c = c;
+                    cell.addEventListener('dragover', handleDragOver);
+                    cell.addEventListener('dragleave', clearGhost);
                     cell.addEventListener('drop', handleDrop);
                     gridElement.appendChild(cell);
                 }
@@ -144,9 +132,9 @@
             handElement.innerHTML = '';
             currentHandShapes = [];
             for (let i = 0; i < 3; i++) {
-                const shapeObj = shapes[Math.floor(Math.random() * shapes.length)];
-                currentHandShapes.push(shapeObj.data);
-                createPieceUI(shapeObj.data, i);
+                const shape = shapes[Math.floor(Math.random() * shapes.length)];
+                currentHandShapes.push(shape);
+                createPieceUI(shape, i);
             }
             if (!canAnyPieceFit()) triggerGameOver();
         }
@@ -156,53 +144,56 @@
             piece.className = 'piece';
             piece.draggable = true;
             piece.dataset.index = index;
-            
             const maxR = Math.max(...shape.map(p => p[0]));
             const maxC = Math.max(...shape.map(p => p[1]));
             piece.style.gridTemplateRows = `repeat(${maxR + 1}, 20px)`;
             piece.style.gridTemplateColumns = `repeat(${maxC + 1}, 20px)`;
-
             shape.forEach(p => {
                 const pc = document.createElement('div');
                 pc.className = 'piece-cell';
-                pc.style.gridRowStart = p[0] + 1;
-                pc.style.gridColumnStart = p[1] + 1;
+                pc.style.gridRowStart = p[0] + 1; pc.style.gridColumnStart = p[1] + 1;
                 piece.appendChild(pc);
             });
-
             piece.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('shapeData', JSON.stringify(shape));
+                activeDraggedShape = shape;
                 e.dataTransfer.setData('handIndex', index);
-                piece.classList.add('dragging');
+                if (audioCtx.state === 'suspended') audioCtx.resume();
             });
-            piece.addEventListener('dragend', () => piece.classList.remove('dragging'));
-            
             handElement.appendChild(piece);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const r = parseInt(e.target.dataset.r);
+            const c = parseInt(e.target.dataset.c);
+            clearGhost();
+            if (activeDraggedShape && canPlace(activeDraggedShape, r, c)) {
+                activeDraggedShape.forEach(([dr, dc]) => {
+                    const cell = gridElement.children[(r + dr) * 10 + (c + dc)];
+                    if (cell) cell.classList.add('ghost');
+                });
+            }
+        }
+
+        function clearGhost() {
+            document.querySelectorAll('.cell.ghost').forEach(c => c.classList.remove('ghost'));
         }
 
         function handleDrop(e) {
             const r = parseInt(e.target.dataset.r);
             const c = parseInt(e.target.dataset.c);
-            const shape = JSON.parse(e.dataTransfer.getData('shapeData'));
             const handIndex = e.dataTransfer.getData('handIndex');
-
-            if (canPlace(shape, r, c)) {
+            const shape = activeDraggedShape;
+            clearGhost();
+            if (shape && canPlace(shape, r, c)) {
                 placeShape(shape, r, c);
                 checkLines();
-                
-                // Remove from internal hand tracker
-                const pieceEl = document.querySelector(`.piece[data-index="${handIndex}"]`);
-                if(pieceEl) pieceEl.remove();
-                
-                // Mark this shape as "gone" (null) in currentHandShapes
+                document.querySelector(`.piece[data-index="${handIndex}"]`).remove();
                 currentHandShapes[handIndex] = null;
-
-                if (currentHandShapes.every(s => s === null)) {
-                    spawnPieces();
-                } else {
-                    if (!canAnyPieceFit()) triggerGameOver();
-                }
+                if (currentHandShapes.every(s => s === null)) spawnPieces();
+                else if (!canAnyPieceFit()) triggerGameOver();
             }
+            activeDraggedShape = null;
         }
 
         function canPlace(shape, r, c) {
@@ -215,49 +206,50 @@
         function placeShape(shape, r, c) {
             shape.forEach(([dr, dc]) => {
                 grid[r + dr][c + dc] = 1;
-                const index = (r + dr) * 10 + (c + dc);
-                gridElement.children[index].classList.add('filled');
+                gridElement.children[(r + dr) * 10 + (c + dc)].classList.add('filled');
             });
             score += shape.length * 10;
             updateScoreUI();
         }
 
         function checkLines() {
-            let rowsToClear = [];
-            let colsToClear = [];
-
+            let rows = [], cols = [];
             for (let i = 0; i < 10; i++) {
-                if (grid[i].every(val => val === 1)) rowsToClear.push(i);
-                if (grid.map(row => row[i]).every(val => val === 1)) colsToClear.push(i);
+                if (grid[i].every(v => v === 1)) rows.push(i);
+                if (grid.map(row => row[i]).every(v => v === 1)) cols.push(i);
             }
 
-            rowsToClear.forEach(r => {
-                grid[r] = Array(10).fill(0);
-                for (let c = 0; c < 10; c++) gridElement.children[r * 10 + c].classList.remove('filled');
-            });
-
-            colsToClear.forEach(c => {
-                for (let r = 0; r < 10; r++) {
-                    grid[r][c] = 0;
-                    gridElement.children[r * 10 + c].classList.remove('filled');
-                }
-            });
-
-            if (rowsToClear.length > 0 || colsToClear.length > 0) {
-                const combo = rowsToClear.length + colsToClear.length;
-                score += combo * 150;
+            if (rows.length > 0 || cols.length > 0) {
+                playCrunchSound();
+                rows.forEach(r => {
+                    grid[r] = Array(10).fill(0);
+                    for (let c = 0; c < 10; c++) animateCell(r, c);
+                });
+                cols.forEach(c => {
+                    for (let r = 0; r < 10; r++) {
+                        if (grid[r][c] === 1 || rows.includes(r)) {
+                            grid[r][c] = 0;
+                            animateCell(r, c);
+                        }
+                    }
+                });
+                score += (rows.length + cols.length) * 150;
                 updateScoreUI();
             }
         }
 
+        function animateCell(r, c) {
+            const cell = gridElement.children[r * 10 + c];
+            cell.classList.remove('filled');
+            cell.classList.add('breaking');
+            setTimeout(() => cell.classList.remove('breaking'), 400);
+        }
+
         function canAnyPieceFit() {
-            // Check only pieces that haven't been placed yet
             return currentHandShapes.some(shape => {
-                if (!shape) return false; 
+                if (!shape) return false;
                 for (let r = 0; r < 10; r++) {
-                    for (let c = 0; c < 10; c++) {
-                        if (canPlace(shape, r, c)) return true;
-                    }
+                    for (let c = 0; c < 10; c++) if (canPlace(shape, r, c)) return true;
                 }
                 return false;
             });
@@ -273,7 +265,7 @@
         }
 
         function triggerGameOver() {
-            finalStats.innerHTML = `Final Score: ${score}<br>Your Best: ${bestScore}`;
+            finalStats.innerHTML = `Final Score: ${score}<br>Best: ${bestScore}`;
             overlay.style.display = 'flex';
         }
 
