@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Elite Boxer: Supply Drop Edition</title>
+    <title>Elite Boxer: Berserker Evolution</title>
     <style>
-        body { background: #121212; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        canvas { background: #2c3e50; border: 6px solid #34495e; box-shadow: 0 0 30px rgba(0,0,0,0.7); border-radius: 8px; }
-        .menu-overlay { position: absolute; background: rgba(0,0,0,0.9); width: 800px; height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; text-align: center; }
-        button { padding: 10px 15px; cursor: pointer; background: #e74c3c; color: white; border: none; font-weight: bold; margin: 5px; transition: 0.2s; }
-        button:hover { background: #c0392b; transform: scale(1.05); }
-        .active-opt { border: 3px solid #f1c40f; }
+        body { background: #121212; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        canvas { background: #1a1a1a; border: 5px solid #333; box-shadow: 0 0 50px #000; border-radius: 8px; cursor: crosshair; }
+        .menu-overlay { position: absolute; background: rgba(0,0,0,0.95); width: 800px; height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; text-align: center; z-index: 10; }
+        .stat-row { margin: 10px; display: flex; gap: 15px; align-items: center; }
+        button { padding: 10px 20px; cursor: pointer; background: #e74c3c; color: white; border: none; font-weight: bold; transition: 0.2s; border-radius: 4px; }
+        button:hover { background: #ff4757; transform: scale(1.1); }
+        .gold-text { color: #f1c40f; font-weight: bold; font-size: 24px; }
     </style>
 </head>
 <body>
@@ -18,20 +19,24 @@
         <canvas id="gameCanvas" width="800" height="400"></canvas>
         
         <div id="menu" class="menu-overlay">
-            <h1>ELITE BOXER</h1>
-            <div>
-                <p>Difficulty:</p>
-                <button id="d1" onclick="setDiff(0.03, 'd1')">EASY</button>
-                <button id="d2" class="active-opt" onclick="setDiff(0.07, 'd2')">NORMAL</button>
-                <button id="d3" onclick="setDiff(0.12, 'd3')">HARD</button>
+            <h1>FIGHTER EVOLUTION</h1>
+            <p>Win fights to earn Gold and upgrade your stats!</p>
+            <div class="gold-text">Gold: <span id="goldVal">0</span></div>
+            
+            <div class="stat-row">
+                <span>Strength (Dmg) <b id="lvlStr">1</b></span>
+                <button onclick="upgrade('str')">Upgrade (50G)</button>
             </div>
-            <div>
-                <p>Supply Drops (Weapons fall from sky):</p>
-                <button id="dropOff" class="active-opt" onclick="setDrops(false, 'dropOff')">OFF</button>
-                <button id="dropOn" onclick="setDrops(true, 'dropOn')">ON</button>
+            <div class="stat-row">
+                <span>Vitality (HP) <b id="lvlHp">1</b></span>
+                <button onclick="upgrade('hp')">Upgrade (50G)</button>
             </div>
-            <br>
-            <button style="background:#2ecc71; font-size: 20px;" onclick="startGame()">START FIGHT</button>
+            <div class="stat-row">
+                <span>Agility (Speed) <b id="lvlSpd">1</b></span>
+                <button onclick="upgrade('spd')">Upgrade (50G)</button>
+            </div>
+
+            <button style="background:#2ecc71; margin-top:20px; font-size:20px;" onclick="startGame()">START FIGHT</button>
         </div>
     </div>
 
@@ -40,78 +45,81 @@
         const ctx = canvas.getContext("2d");
         const menu = document.getElementById("menu");
 
-        let gameState = "MENU";
-        let aiAggro = 0.07;
-        let dropsEnabled = false;
-        let winner = null;
-        let items = [];
+        // --- 5. LEVELING SYSTEM (Local Storage) ---
+        let stats = JSON.parse(localStorage.getItem('boxerStats')) || { gold: 0, str: 1, hp: 1, spd: 1 };
 
-        const weapons = {
-            'Gloves': { dmg: 8, range: 80, stamina: 10, color: 'white' },
-            'Bat': { dmg: 18, range: 130, stamina: 25, color: '#8d6e63' },
-            'Brass': { dmg: 25, range: 65, stamina: 20, color: '#f1c40f' }
-        };
+        function save() { 
+            localStorage.setItem('boxerStats', JSON.stringify(stats)); 
+            document.getElementById('goldVal').innerText = stats.gold;
+            document.getElementById('lvlStr').innerText = stats.str;
+            document.getElementById('lvlHp').innerText = stats.hp;
+            document.getElementById('lvlSpd').innerText = stats.spd;
+        }
+        save();
 
-        function setDiff(v, id) { aiAggro = v; clearGroup('d'); document.getElementById(id).classList.add('active-opt'); }
-        function setDrops(v, id) { dropsEnabled = v; clearGroup('drop'); document.getElementById(id).classList.add('active-opt'); }
-        function clearGroup(prefix) { document.querySelectorAll(`button[id^="${prefix}"]`).forEach(b => b.classList.remove('active-opt')); }
-
-        class Item {
-            constructor() {
-                this.x = Math.random() * 700 + 50;
-                this.y = -50;
-                this.type = Math.random() > 0.5 ? 'Bat' : 'Brass';
-            }
-            update() { if (this.y < 320) this.y += 3; }
-            draw() {
-                ctx.fillStyle = "#d38d5f";
-                ctx.fillRect(this.x, this.y, 30, 30);
-                ctx.strokeStyle = "white"; ctx.strokeRect(this.x, this.y, 30, 30);
+        function upgrade(type) {
+            if (stats.gold >= 50) {
+                stats.gold -= 50; stats[type]++; save();
             }
         }
+
+        // --- 6. PARTICLE SYSTEM ---
+        let particles = [];
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y;
+                this.vX = (Math.random() - 0.5) * 10;
+                this.vY = (Math.random() - 0.5) * 10;
+                this.alpha = 1; this.color = color;
+            }
+            update() { this.x += this.vX; this.y += this.vY; this.alpha -= 0.02; }
+            draw() {
+                ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, 4, 4); ctx.globalAlpha = 1;
+            }
+        }
+
+        let gameState = "MENU"; let winner = null;
+        const weapons = { 'Gloves': { dmg: 8 + (stats.str * 2), range: 80 } };
 
         class Fighter {
             constructor(x, color, side, isAI) {
                 this.x = x; this.y = 240; this.w = 60; this.h = 110;
                 this.color = color; this.side = side; this.isAI = isAI;
-                this.hp = 100; this.stamina = 100;
+                this.maxHp = isAI ? 100 : 100 + (stats.hp * 10);
+                this.hp = this.maxHp;
+                this.speed = isAI ? 4 : 4 + (stats.spd * 0.5);
                 this.velY = 0; this.velX = 0;
-                this.isJumping = false; this.isBlocking = false;
-                this.action = "idle"; this.actionTimer = 0;
-                this.weapon = weapons['Gloves'];
+                // --- 1. RAGE SYSTEM ---
+                this.rage = 0; this.isBerserk = false; this.berserkTimer = 0;
             }
+
             update() {
                 this.y += this.velY; this.x += this.velX; this.velX *= 0.85;
-                if (this.y < 240) { this.velY += 1.2; this.isJumping = true; } 
-                else { this.y = 240; this.velY = 0; this.isJumping = false; }
-                if (this.stamina < 100) this.stamina += 0.5;
-                if (this.actionTimer > 0) this.actionTimer--; else this.action = "idle";
-
-                // Item Pickup
-                items.forEach((it, index) => {
-                    if (this.x < it.x + 30 && this.x + this.w > it.x && this.y < it.y + 30 && this.y + this.h > it.y) {
-                        this.weapon = weapons[it.type];
-                        items.splice(index, 1);
-                    }
-                });
-            }
-            draw() {
-                ctx.fillStyle = this.isBlocking ? "#7f8c8d" : this.color;
-                ctx.fillRect(this.x, this.y, this.w, this.h);
-                // Draw Weapon in hand
-                ctx.fillStyle = this.weapon.color;
-                let wx = this.side === "left" ? this.x + 45 : this.x + 5;
-                ctx.fillRect(wx, this.y + 50, 10, 20);
-
-                let barX = this.side === "left" ? 20 : 580;
-                ctx.fillStyle = "red"; ctx.fillRect(barX, 20, this.hp * 2, 15);
-                ctx.fillStyle = "lime"; ctx.fillRect(barX, 40, this.stamina * 2, 5);
-
-                if (this.action === "atk") {
-                    ctx.fillStyle = "rgba(255,255,255,0.5)";
-                    let hitX = this.side === "left" ? this.x + 60 : this.x - this.weapon.range + 60;
-                    ctx.fillRect(hitX, this.y + 30, this.weapon.range - 60, 20);
+                if (this.y < 240) { this.velY += 1.2; } else { this.y = 240; this.velY = 0; }
+                
+                if (this.isBerserk) {
+                    this.berserkTimer--;
+                    if (this.berserkTimer <= 0) this.isBerserk = false;
                 }
+            }
+
+            draw() {
+                // Glow if Berserk
+                if (this.isBerserk) {
+                    ctx.shadowBlur = 20; ctx.shadowColor = "red";
+                    ctx.fillStyle = "#ff4757";
+                } else {
+                    ctx.shadowBlur = 0; ctx.fillStyle = this.color;
+                }
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                ctx.shadowBlur = 0;
+
+                // HP and Rage bars
+                let bx = this.side === "left" ? 20 : 580;
+                ctx.fillStyle = "#333"; ctx.fillRect(bx, 20, 200, 15);
+                ctx.fillStyle = "red"; ctx.fillRect(bx, 20, (this.hp / this.maxHp) * 200, 15);
+                ctx.fillStyle = "#ff9f43"; ctx.fillRect(bx, 40, this.rage * 2, 5);
             }
         }
 
@@ -119,20 +127,24 @@
         window.onkeydown = (e) => keys[e.code] = true;
         window.onkeyup = (e) => keys[e.code] = false;
 
-        function startGame() {
-            p1 = new Fighter(100, "#e74c3c", "left", false);
-            cpu = new Fighter(640, "#3498db", "right", true);
-            gameState = "PLAY";
-            menu.style.display = "none";
-            if(dropsEnabled) setInterval(() => { if(!winner) items.push(new Item()); }, 7000);
-        }
+        function startGame() { gameState = "PLAY"; menu.style.display = "none"; p1 = new Fighter(100, "cyan", "left", false); cpu = new Fighter(600, "red", "right", true); winner = null; }
 
         function checkHit(atk, def) {
-            let dist = Math.abs(atk.x - def.x);
-            if (dist < atk.weapon.range) {
-                def.hp -= def.isBlocking ? atk.weapon.dmg * 0.2 : atk.weapon.dmg;
-                def.velX = atk.side === "left" ? 15 : -15;
-                if (def.hp <= 0) winner = atk.isAI ? "CPU" : "PLAYER 1";
+            let d = Math.abs(atk.x - def.x);
+            if (d < 90) {
+                let damage = 10 + (atk.isAI ? 0 : stats.str * 2);
+                def.hp -= damage;
+                def.rage += 15; // Gain rage when hit
+                if (def.rage >= 100) { def.rage = 0; def.isBerserk = true; def.berserkTimer = 300; }
+                
+                // Spawn Particles
+                for(let i=0; i<8; i++) particles.push(new Particle(def.x + 30, def.y + 40, "yellow"));
+                
+                def.velX = atk.side === "left" ? 20 : -20;
+                if (def.hp <= 0) { 
+                    winner = atk.side; 
+                    if(!atk.isAI) { stats.gold += 100; save(); }
+                }
             }
         }
 
@@ -140,25 +152,22 @@
             ctx.clearRect(0, 0, 800, 400);
             if (gameState === "PLAY") {
                 if (winner) {
-                    ctx.fillStyle = "gold"; ctx.font = "40px Arial";
-                    ctx.fillText(winner + " WINS!", 280, 200);
+                    ctx.fillStyle = "white"; ctx.font = "40px Arial";
+                    ctx.fillText(winner + " WINS! +100 Gold", 200, 200);
+                    setTimeout(() => { gameState = "MENU"; menu.style.display = "flex"; winner = null; }, 3000);
                 } else {
-                    // P1
-                    if (keys['KeyA'] && p1.x > 0) p1.x -= 5;
-                    if (keys['KeyD'] && p1.x < cpu.x - 60) p1.x += 5;
-                    if (keys['KeyW'] && !p1.isJumping) p1.velY = -18;
-                    p1.isBlocking = keys['KeyB'];
-                    if (keys['Space'] && p1.actionTimer <= 0 && p1.stamina > p1.weapon.stamina) {
-                        p1.action = "atk"; p1.actionTimer = 20; p1.stamina -= p1.weapon.stamina; checkHit(p1, cpu);
-                    }
-                    // AI
-                    let d = Math.abs(cpu.x - p1.x);
-                    if (d > cpu.weapon.range) cpu.x -= 3;
-                    if (Math.random() < aiAggro && cpu.actionTimer <= 0) {
-                        cpu.action = "atk"; cpu.actionTimer = 20; checkHit(cpu, p1);
-                    }
-                    items.forEach(it => { it.update(); it.draw(); });
-                    p1.update(); cpu.update(); p1.draw(); cpu.draw();
+                    // P1 Control
+                    let s = p1.isBerserk ? p1.speed * 1.5 : p1.speed;
+                    if (keys['KeyA']) p1.x -= s; if (keys['KeyD']) p1.x += s;
+                    if (keys['Space']) { checkHit(p1, cpu); keys['Space'] = false; }
+
+                    // AI Basic
+                    if (cpu.x > p1.x + 70) cpu.x -= cpu.speed;
+                    if (Math.random() < 0.05) checkHit(cpu, p1);
+
+                    p1.update(); cpu.update();
+                    p1.draw(); cpu.draw();
+                    particles.forEach((p, i) => { p.update(); p.draw(); if(p.alpha <= 0) particles.splice(i, 1); });
                 }
             }
             requestAnimationFrame(gameLoop);
@@ -167,4 +176,3 @@
     </script>
 </body>
 </html>
-What's New:
