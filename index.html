@@ -1,18 +1,20 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitBlock Puzzle - Satisfying Edition</title>
+    <title>GitBlock Tile Edition</title>
     <style>
         :root {
             --bg: #0d1117;
             --grid-bg: #161b22;
             --border: #30363d;
-            --accent: #238636;
+            --accent: #2ea043; /* Brighter tile green */
+            --accent-light: #3fb950;
+            --accent-dark: #238636;
             --text: #c9d1d9;
-            --ghost: rgba(35, 134, 54, 0.3);
-            --break-color: #3fb950;
+            --ghost: rgba(46, 160, 67, 0.15);
         }
         body { 
             background: var(--bg); color: var(--text); 
@@ -21,33 +23,44 @@
             height: 100vh; margin: 0; overflow: hidden; user-select: none;
         }
         #game-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
-        .stats { display: flex; gap: 40px; font-size: 18px; font-weight: 600; color: #8b949e; }
-        #best-score { color: #f2cc60; }
-        #grid { 
-            display: grid; grid-template-columns: repeat(10, 32px); grid-template-rows: repeat(10, 32px); 
-            gap: 4px; background: var(--border); padding: 8px; border-radius: 6px; position: relative;
-        }
-        .cell { width: 32px; height: 32px; background: var(--grid-bg); border-radius: 3px; position: relative; }
-        .cell.filled { background: var(--accent); border: 1px solid #2ea043; transition: transform 0.1s; }
-        .cell.ghost { background: var(--ghost); border: 1px dashed var(--accent); }
+        .stats { display: flex; gap: 40px; font-size: 20px; font-weight: 700; color: #8b949e; }
         
-        /* Breaking Animation */
-        .cell.breaking {
-            animation: breakEffect 0.4s ease-out forwards;
-            z-index: 10;
+        #grid { 
+            display: grid; grid-template-columns: repeat(10, 34px); grid-template-rows: repeat(10, 34px); 
+            gap: 4px; background: var(--border); padding: 10px; border-radius: 8px; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+        }
+        
+        .cell { width: 34px; height: 34px; background: var(--grid-bg); border-radius: 4px; box-shadow: inset 0 0 5px rgba(0,0,0,0.3); }
+
+        /* TILE STYLING */
+        .cell.filled, .piece-cell { 
+            background: linear-gradient(145deg, var(--accent-light), var(--accent-dark));
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            box-shadow: 
+                inset 1px 1px 2px rgba(255,255,255,0.4), 
+                inset -1px -1px 2px rgba(0,0,0,0.4),
+                0 2px 4px rgba(0,0,0,0.3);
         }
 
+        .cell.ghost { background: var(--ghost); border: 2px dashed var(--accent); }
+
+        /* ANIMATION */
+        .cell.breaking { animation: breakEffect 0.4s ease-out forwards; z-index: 10; }
         @keyframes breakEffect {
-            0% { transform: scale(1); background: var(--break-color); box-shadow: 0 0 0px var(--break-color); }
-            50% { transform: scale(1.2); background: #fff; box-shadow: 0 0 15px #fff; }
-            100% { transform: scale(0); background: transparent; opacity: 0; }
+            0% { transform: scale(1); filter: brightness(2); }
+            100% { transform: scale(0); opacity: 0; filter: brightness(3); }
         }
 
-        #hand { display: flex; gap: 20px; align-items: center; justify-content: center; min-height: 130px; margin-top: 15px; }
-        .piece { display: grid; gap: 3px; cursor: grab; padding: 10px; }
-        .piece-cell { width: 20px; height: 20px; background: var(--accent); border-radius: 2px; }
-        button { background: #21262d; color: #58a6ff; border: 1px solid rgba(240,246,252,0.1); padding: 10px 20px; border-radius: 6px; cursor: pointer; }
-        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 17, 23, 0.9); flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
+        #hand { display: flex; gap: 25px; align-items: center; justify-content: center; min-height: 140px; }
+        .piece { display: grid; gap: 4px; cursor: grab; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
+        .piece:active { cursor: grabbing; transform: scale(1.1); }
+        .piece-cell { width: 24px; height: 24px; }
+
+        button { background: #21262d; color: #58a6ff; border: 1px solid #30363d; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #30363d; transform: translateY(-2px); }
+        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); flex-direction: column; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(5px); }
     </style>
 </head>
 <body>
@@ -55,17 +68,17 @@
     <div id="game-container">
         <div class="stats">
             <div>Score: <span id="current-score">0</span></div>
-            <div>Best: <span id="best-score">0</span></div>
+            <div style="color:#f2cc60">Best: <span id="best-score">0</span></div>
         </div>
         <div id="grid"></div>
         <div id="hand"></div>
-        <button onclick="resetGame()">Manual Restart</button>
+        <button onclick="resetGame()">Restart</button>
     </div>
 
     <div id="overlay">
-        <h1 style="color: #f85149; font-size: 48px;">GAME OVER</h1>
-        <p id="final-stats" style="font-size: 20px; margin-bottom: 30px;"></p>
-        <button onclick="resetGame()" style="background: var(--accent); color: white; padding: 15px 40px;">Respawn Now</button>
+        <h1 style="color: #f85149; font-size: 50px; margin:0;">GAME OVER</h1>
+        <p id="final-stats" style="font-size: 24px; margin: 20px 0;"></p>
+        <button onclick="resetGame()" style="background: var(--accent); color: white; padding: 15px 40px; font-size: 20px;">Respawn Tiles</button>
     </div>
 
     <script>
@@ -84,25 +97,23 @@
 
         bestElement.innerText = bestScore;
 
-        // Audio System
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playCrunchSound() {
+        function playCrunch() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.1);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.15);
         }
 
         const shapes = [
             [[0,0], [0,1], [1,0], [1,1]], [[0,0], [0,1], [0,2]], [[0,0], [1,0], [2,0]], 
-            [[0,0], [0,1], [1,1]], [[0,0], [0,1], [0,2], [0,3]], [[0,0]]
+            [[0,0], [0,1], [1,1]], [[0,0], [1,0], [1,1], [2,1]], [[0,0], [0,1], [0,2], [0,3]]
         ];
 
         function resetGame() {
@@ -121,7 +132,7 @@
                     cell.classList.add('cell');
                     cell.dataset.r = r; cell.dataset.c = c;
                     cell.addEventListener('dragover', handleDragOver);
-                    cell.addEventListener('dragleave', clearGhost);
+                    cell.addEventListener('dragleave', () => document.querySelectorAll('.cell.ghost').forEach(c => c.classList.remove('ghost')));
                     cell.addEventListener('drop', handleDrop);
                     gridElement.appendChild(cell);
                 }
@@ -134,62 +145,42 @@
             for (let i = 0; i < 3; i++) {
                 const shape = shapes[Math.floor(Math.random() * shapes.length)];
                 currentHandShapes.push(shape);
-                createPieceUI(shape, i);
+                const piece = document.createElement('div');
+                piece.className = 'piece'; piece.draggable = true; piece.dataset.index = i;
+                const maxR = Math.max(...shape.map(p => p[0])), maxC = Math.max(...shape.map(p => p[1]));
+                piece.style.gridTemplateRows = `repeat(${maxR + 1}, 24px)`;
+                piece.style.gridTemplateColumns = `repeat(${maxC + 1}, 24px)`;
+                shape.forEach(p => {
+                    const pc = document.createElement('div'); pc.className = 'piece-cell';
+                    pc.style.gridRowStart = p[0] + 1; pc.style.gridColumnStart = p[1] + 1;
+                    piece.appendChild(pc);
+                });
+                piece.addEventListener('dragstart', (e) => { activeDraggedShape = shape; e.dataTransfer.setData('idx', i); });
+                handElement.appendChild(piece);
             }
             if (!canAnyPieceFit()) triggerGameOver();
         }
 
-        function createPieceUI(shape, index) {
-            const piece = document.createElement('div');
-            piece.className = 'piece';
-            piece.draggable = true;
-            piece.dataset.index = index;
-            const maxR = Math.max(...shape.map(p => p[0]));
-            const maxC = Math.max(...shape.map(p => p[1]));
-            piece.style.gridTemplateRows = `repeat(${maxR + 1}, 20px)`;
-            piece.style.gridTemplateColumns = `repeat(${maxC + 1}, 20px)`;
-            shape.forEach(p => {
-                const pc = document.createElement('div');
-                pc.className = 'piece-cell';
-                pc.style.gridRowStart = p[0] + 1; pc.style.gridColumnStart = p[1] + 1;
-                piece.appendChild(pc);
-            });
-            piece.addEventListener('dragstart', (e) => {
-                activeDraggedShape = shape;
-                e.dataTransfer.setData('handIndex', index);
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-            });
-            handElement.appendChild(piece);
-        }
-
         function handleDragOver(e) {
             e.preventDefault();
-            const r = parseInt(e.target.dataset.r);
-            const c = parseInt(e.target.dataset.c);
-            clearGhost();
+            const r = parseInt(e.target.dataset.r), c = parseInt(e.target.dataset.c);
+            document.querySelectorAll('.cell.ghost').forEach(x => x.classList.remove('ghost'));
             if (activeDraggedShape && canPlace(activeDraggedShape, r, c)) {
-                activeDraggedShape.forEach(([dr, dc]) => {
-                    const cell = gridElement.children[(r + dr) * 10 + (c + dc)];
-                    if (cell) cell.classList.add('ghost');
-                });
+                activeDraggedShape.forEach(([dr, dc]) => gridElement.children[(r + dr) * 10 + (c + dc)].classList.add('ghost'));
             }
         }
 
-        function clearGhost() {
-            document.querySelectorAll('.cell.ghost').forEach(c => c.classList.remove('ghost'));
-        }
-
         function handleDrop(e) {
-            const r = parseInt(e.target.dataset.r);
-            const c = parseInt(e.target.dataset.c);
-            const handIndex = e.dataTransfer.getData('handIndex');
-            const shape = activeDraggedShape;
-            clearGhost();
-            if (shape && canPlace(shape, r, c)) {
-                placeShape(shape, r, c);
+            const r = parseInt(e.target.dataset.r), c = parseInt(e.target.dataset.c), idx = e.dataTransfer.getData('idx');
+            if (activeDraggedShape && canPlace(activeDraggedShape, r, c)) {
+                activeDraggedShape.forEach(([dr, dc]) => {
+                    grid[r+dr][c+dc] = 1;
+                    gridElement.children[(r+dr)*10+(c+dc)].classList.add('filled');
+                });
+                score += activeDraggedShape.length * 10;
                 checkLines();
-                document.querySelector(`.piece[data-index="${handIndex}"]`).remove();
-                currentHandShapes[handIndex] = null;
+                document.querySelector(`.piece[data-index="${idx}"]`).remove();
+                currentHandShapes[idx] = null;
                 if (currentHandShapes.every(s => s === null)) spawnPieces();
                 else if (!canAnyPieceFit()) triggerGameOver();
             }
@@ -203,24 +194,14 @@
             });
         }
 
-        function placeShape(shape, r, c) {
-            shape.forEach(([dr, dc]) => {
-                grid[r + dr][c + dc] = 1;
-                gridElement.children[(r + dr) * 10 + (c + dc)].classList.add('filled');
-            });
-            score += shape.length * 10;
-            updateScoreUI();
-        }
-
         function checkLines() {
             let rows = [], cols = [];
             for (let i = 0; i < 10; i++) {
                 if (grid[i].every(v => v === 1)) rows.push(i);
                 if (grid.map(row => row[i]).every(v => v === 1)) cols.push(i);
             }
-
             if (rows.length > 0 || cols.length > 0) {
-                playCrunchSound();
+                playCrunch();
                 rows.forEach(r => {
                     grid[r] = Array(10).fill(0);
                     for (let c = 0; c < 10; c++) animateCell(r, c);
@@ -228,20 +209,19 @@
                 cols.forEach(c => {
                     for (let r = 0; r < 10; r++) {
                         if (grid[r][c] === 1 || rows.includes(r)) {
-                            grid[r][c] = 0;
-                            animateCell(r, c);
+                            grid[r][c] = 0; animateCell(r, c);
                         }
                     }
                 });
                 score += (rows.length + cols.length) * 150;
-                updateScoreUI();
+                scoreElement.innerText = score;
+                if (score > bestScore) { bestScore = score; bestElement.innerText = score; localStorage.setItem('blockBlastBest', score); }
             }
         }
 
         function animateCell(r, c) {
             const cell = gridElement.children[r * 10 + c];
-            cell.classList.remove('filled');
-            cell.classList.add('breaking');
+            cell.classList.remove('filled'); cell.classList.add('breaking');
             setTimeout(() => cell.classList.remove('breaking'), 400);
         }
 
@@ -255,17 +235,8 @@
             });
         }
 
-        function updateScoreUI() {
-            scoreElement.innerText = score;
-            if (score > bestScore) {
-                bestScore = score;
-                bestElement.innerText = bestScore;
-                localStorage.setItem('blockBlastBest', bestScore);
-            }
-        }
-
         function triggerGameOver() {
-            finalStats.innerHTML = `Final Score: ${score}<br>Best: ${bestScore}`;
+            finalStats.innerHTML = `Tiles Placed Score: ${score}<br>Personal Best: ${bestScore}`;
             overlay.style.display = 'flex';
         }
 
